@@ -1,0 +1,106 @@
+---
+title: "HDAT9700: Assignment 1B - Chapters 3 & 4"
+output: github_document
+author: Andrea Schaffer
+date: 23 Sep 2019
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+libs <- c("astsa","forecast","lmtest","zoo")
+missing <- !libs %in% installed.packages()
+if (any(missing)) {
+  install.packages(libs[missing],repos="https://cloud.r-project.org")
+}
+```
+
+### Submission instructions
+This is an R Markdown document---an example of *literate programming*, an approach which allows users to interweave text, statistical output and the code that produces that output. 
+
+To complete your assignment:   
+
+* Edit this file directly, interweaving text and R code as appropriate to answer the questions below. Remember to `Knit` the file to make sure everything is running smoothly. Detailed information on R Markdown is available [here](https://rmarkdown.rstudio.com/lesson-1.html), and there is a useful cheatsheet [here](https://www.rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf).  
+
+* Use git to `commit` changes you make in this repo locally.   
+
+* `Push` the repo, together with this edited file and the corresponding `.md` file to GitHub Classroom.  
+You can `commit` and `push` as often as neccessary---your assessment will be graded on the most recent version of your repo at the assessment due date. 
+
+Good luck!
+
+
+***
+
+### Overview
+
+For this assessment you will use a subset of data from a study of blood lead level in children in Syracuse, New York. ([Shao et al. (2017) Interrupted time series analysis of children's blood lead levels: A case study of lead hazard control program in Syracuse, New York. *PLoS ONE* 12(2):e0171778](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0171778)). Lead exposure in early childhood can lead to adverse behavioural and developmental outcomes. One of the main sources of exposure is lead-based paint, and is more common in low-income neighbourhoods. 
+
+The purpose of this study was to quantify long term trends in children's blood lead levels. The main outcome variable is monthly mean blood lead levels in $\mu$g/ml measured in children living in Syracuse from October 1993 to December 2006. In December 1999, the city of Syracuse implemented a lead paint abatement project to remove lead from low income housing. In this assessment you will evaluate the impact of this intervention on mean blood lead levels in children over time.
+
+The file contains the following variables:
+
+* **date** - Month and year
+* **bll** - Mean blood lead levels in $\mu$g/ml
+* **time** - Time since start of study
+* **int** - Intervention variable (0=before intervention; 1=after intervention)
+* **time2** - Time since start of intervention
+
+You will need to have the following packages installed: `astsa`, `lmtest`, `forecast`, and `zoo`.
+
+The data are contained in your assignment repo and can be read as follows:
+``` {r read-data}
+lead <- read.csv("lead.csv", header=TRUE)
+head(lead)
+```
+
+
+
+***
+
+### Assessment questions 
+
+*Hint: You may have to convert the data into 'ts' objects to complete this assignment.
+
+(1) Create a plot of the mean blood lead levels time series, as if you were preparing it for inclusion in a report or publication. The date of the intervention should be clearly indicated. (10%)
+
+(2) Describe the characteristics of the blood lead levels time series in terms of the trend, seasonality, and outliers. Use plots and/or summary statistics to support your statements. (15%)
+
+(3) With time series data, it is important to test for autocorrelation, and adequately control for it if present. Briefly state how you might test for autocorrelation, and why it is important to adjust for it? (Note: there is no need to actually run the code) (10%)
+
+(4) Create the vectors listed below, checking that they were created correctly. Describe the purpose of each of these and when you would include them in your regression model? (15%)
+
+    * **lag_int** - Intervention variable shifted by one month (i.e. starting in January 2000)
+    * **lag_time2** - Time since intervention variable shifted by one month
+    * **lag1_bll** - Mean blood lead level from the previous month
+    * **month** - Dummy values for month.
+
+(5) Fit the following regression models. Which one best describes the association between the intervention, and children's mean blood lead levels over time? Justify your answer. (25%)
+
+    * **Model 1** - bll ~ time + int + time2
+    * **Model 2** - bll ~ time + int + time2 + month
+    * **Model 3** - bll ~ time + int + time2 + month + lag1_bll
+    * **Model 4** - bll ~ time + lag_int + lag_time2 + month
+    * **Model 5** - bll ~ time + lag_int + lag_time2 + month + lag1_bll 
+
+(6) Using the model chosen in (5), what can you conclude about the effect of the intervention? Provide effect estimates and relevant statistics to support your answer. (15%)
+
+(7) Including a "negative control" series is one way of improving causal inference from interrupted time series analysis. Suggest an appropriate control series for this intervention, and justify your choice.  (10%)
+
+***
+
+### Student declaration
+
+**_Instructions: Indicate that you understand and agree with the following three statements by typing an x in the square brackets below, e.g. [x]._** 
+
+I declare that this assessment item is my own work, except where acknowledged, and has not been submitted for academic credit elsewhere or previously, or produced independently of this course (e.g. for a third party such as your place of employment) and acknowledge that the assessor of this item may, for the purpose of assessing this item: (i) Reproduce this assessment item and provide a copy to another member of the University; and/or (ii) Communicate a copy of this assessment item to a plagiarism checking service (which may then retain a copy of the assessment item on its database for the purpose of future plagiarism checking).  
+
+- [ ] I understand and agree
+
+I certify that I have read and understood the University Rules in respect of Student Academic Misconduct.  
+
+- [ ] I understand and agree
+
+I have a backup copy of the assessment.  
+- [ ] I understand and agree
+    
