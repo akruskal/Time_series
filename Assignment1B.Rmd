@@ -53,7 +53,14 @@ The data are contained in your assignment repo and can be read as follows:
 lead <- read.csv("lead.csv", header=TRUE)
 head(lead)
 ```
+``` {r library, message = FALSE}
+library(astsa)
+library(lmtest)
+library(forecast)
+library(zoo)
+library(TSA)
 
+```
 
 
 ***
@@ -62,20 +69,158 @@ head(lead)
 
 *Hint: You may have to convert the data into 'ts' objects to complete this assignment.
 
-(1) Create a plot of the mean blood lead levels time series, as if you were preparing it for inclusion in a report or publication. The date of the intervention should be clearly indicated. (10%)
+####(1) Create a plot of the mean blood lead levels time series, as if you were preparing it for inclusion in a report or publication. The date of the intervention should be clearly indicated. (10%)
 
-(2) Describe the characteristics of the blood lead levels time series in terms of the trend, seasonality, and outliers. Use plots and/or summary statistics to support your statements. (15%)
+``` {r Q1-a}
+blood_lead_ts <- ts(lead[2], start=c(1993,10), end=c(2006,12), frequency=12)
 
-(3) With time series data, it is important to test for autocorrelation, and adequately control for it if present. Briefly state how you might test for autocorrelation, and why it is important to adjust for it? (Note: there is no need to actually run the code) (10%)
+#print(time(blood_lead_ts))
 
-(4) Create the vectors listed below, checking that they were created correctly. Describe the purpose of each of these and when you would include them in your regression model? (15%)
+plot(blood_lead_ts, 
+    ylab= expression( "Lead in blood (" * mu * "g/ml)"),
+    xlab="Month", 
+    main= "Children's Blood Lead Levels in Syracuse, NY: Oct 1993 to Dec 2006",
+    col= 'blue'
+    )
+
+# Add a vertical line - "col" is colour, "lty" is line type, "lwd" is line width
+abline(v=1999.917, col="red", lty="dashed", lwd=2)
+```
+
+
+####(2) Describe the characteristics of the blood lead levels time series in terms of the trend, seasonality, and outliers. Use plots and/or summary statistics to support your statements. (15%)
+
+``` {r Q2-a, Echo = FALSE}
+lag1.plot(blood_lead_ts)
+
+# Plot the decomposed series
+dec_lead <- decompose(blood_lead_ts)
+plot(dec_lead)
+
+#plot by year
+ggseasonplot(blood_lead_ts, year.labels=TRUE)
+
+acf2(blood_lead_ts)
+
+summary(blood_lead_ts)
+
+
+
+```
+
+
+#<span style="color:blue">**----------------------------------------------------------------**</span>
+
+<span style="color:blue">**Below is to check for autocorrelation and seasonality after adjusting for the negative trend:**</span>
+
+``` {r Q2-b, echo = FALSE}
+lag1.plot(diff(blood_lead_ts))
+plot(diff(blood_lead_ts))
+acf2(diff(blood_lead_ts))
+
+dec_lead_diff <- decompose(diff(blood_lead_ts))
+plot(dec_lead_diff)
+
+#outlier detection based on diff random plot
+cat("Observation with max outlier:", which.max(dec_lead_diff$random))
+cat("Date of max outlier:", toString(lead[which.max(dec_lead_diff$random),1]))
+
+cat("Observation with min outlier:", which.min(dec_lead_diff$random))
+cat("Date of min outlier:",  toString(lead[which.min(dec_lead_diff$random),1]))
+```
+
+
+Looking at the raw data ploted in question one, there seems to be a negative trend. This is further confirmed by the trend of the decomposition time series.
+
+There appears to be a step change around the time of the internvention and possibly a slope change, decreasing at a slower rate than before the intervention. The step change is further suported by the min outlier 1 month after the intervention, but there was also the max outlier the month of the intervention to be mindful of. The blood lead levels increasing at the start of the intervention may be the result of more lower income children being tested as a result of the intervention or a random anomoly.
+
+Looking at the lag1 plot, you can see that there is high autocorrelation. After taking the difference (adjusting for the negative trend), there does not seem to be a need to correct for any seasonality, despite visually looking at the season plot there seems to be seasonality, as shown by the ACF and PACF plots being relatively within the blue lines (negliaible seasonality) and in fact when looking at the ACF and PACF plots after a 1 year lag as well, they seem to be worse; I would still look at models that accounted for yearly seasonality as the season plot visually suggests one.
+
+
+####(3) With time series data, it is important to test for autocorrelation, and adequately control for it if present. Briefly state how you might test for autocorrelation, and why it is important to adjust for it? (Note: there is no need to actually run the code) (10%)
+
+lag1.plot('timeseries') is a good way to see if there is autocorrelation as demonstrated above. There is extremely high correlation, a diagonal line for the plots is shown, where after taking the difference from the previous month, there is no autocorrelation as shown from the second lag1 plot above. The average correlation is now 0, a horizonal line on average.
+
+####(4) Create the vectors listed below, checking that they were created correctly. Describe the purpose of each of these and when you would include them in your regression model? (15%)
 
     * **lag_int** - Intervention variable shifted by one month (i.e. starting in January 2000)
     * **lag_time2** - Time since intervention variable shifted by one month
     * **lag1_bll** - Mean blood lead level from the previous month
     * **month** - Dummy values for month.
 
-(5) Fit the following regression models. Which one best describes the association between the intervention, and children's mean blood lead levels over time? Justify your answer. (25%)
+``` {r Q4-a, echo = FALSE}
+#create basic ts
+bll <- blood_lead_ts
+time <- ts(lead[3], start=c(1993,10), end=c(2006,12), frequency=12)
+int <- ts(lead[4], start=c(1993,10), end=c(2006,12), frequency=12)
+time2 <- ts(lead[5], start=c(1993,10), end=c(2006,12), frequency=12)
+
+# create lag_int
+lag_int <- int
+lag_int[as.integer(which(int ==1)[1])] <- 0
+``` 
+
+We would use lag_int when we think there is a step change, but the effect is seen after the intervention date - in this case we are setting up a one month delay.  
+  
+We would use lag_time2 when we suspect there is a slope change pre and post intervention, but again is delayed a month.  
+  
+We would use lag1_bll if the previous month's lead blood levels affect the next month's bll. To some degree, we do expect the bll's to correlate because it does take time for bll to reduce or increase to any continual stimulus or lack there of.  
+  
+Month is a dummy variable used to account for the seasonality (months having a general trend); A more obvious use case would be when looking at drowning cases throughout the year, we see higher incidence of drowning in the summer when people are going to beaches and swimming more. With blood lead levels, it may correlate to kids being home more in the summer and december holidays, and getting more exposure to home lead sources.
+
+**int ts:**
+``` {r Q4-int_ts, echo = FALSE}
+print(int)
+``` 
+
+**lag_int ts:**
+``` {r Q4-lag_int_ts, echo = FALSE}
+print(lag_int)
+``` 
+
+``` {r Q4-b, echo = FALSE}
+#make lag_time2
+lag_time2 <- time2 - ifelse(time2>0, 1,0)
+```
+
+**time2 ts:**
+``` {r Q4-time2, echo = FALSE}
+print(time2)
+``` 
+
+**lag_time2 ts:**
+``` {r Q4-lag_time2, echo = FALSE}
+print(lag_time2)
+``` 
+
+``` {r Q4-c, echo = FALSE}
+#make lag1_bll
+lag1_bll <- data.table::shift(bll, n=1)
+```
+
+**bll ts:**
+``` {r Q4-bll, echo = FALSE}
+print(bll)
+``` 
+
+**lag1_bll ts:**
+``` {r Q3-lag1_bll, echo = FALSE}
+print(lag1_bll)
+``` 
+
+``` {r Q4-d, echo = FALSE}
+#make month
+month <- season(bll)
+```
+
+**month**
+``` {r Q4-month, echo = FALSE}
+print(month)
+```
+
+
+
+####(5) Fit the following regression models. Which one best describes the association between the intervention, and children's mean blood lead levels over time? Justify your answer. (25%)
 
     * **Model 1** - bll ~ time + int + time2
     * **Model 2** - bll ~ time + int + time2 + month
@@ -83,9 +228,147 @@ head(lead)
     * **Model 4** - bll ~ time + lag_int + lag_time2 + month
     * **Model 5** - bll ~ time + lag_int + lag_time2 + month + lag1_bll 
 
-(6) Using the model chosen in (5), what can you conclude about the effect of the intervention? Provide effect estimates and relevant statistics to support your answer. (15%)
+  
+  
+####**Model 1**
 
-(7) Including a "negative control" series is one way of improving causal inference from interrupted time series analysis. Suggest an appropriate control series for this intervention, and justify your choice.  (10%)
+``` {r Q5-model 1, echo = FALSE} 
+# Estimate model
+bll_model1 <- glm(bll ~ time + int + time2)
+# Check residual plots
+plot(bll_model1)
+# Durbin Watson test for autocorrelation of residuals
+dwtest(bll_model1)
+# Get parameter estimates and confidence intervals
+summary(bll_model1)
+confint(bll_model1)
+```
+
+  
+  
+####**Model 2**
+
+``` {r Q5-model 2, echo = FALSE}
+# Estimate model
+bll_model2 <- glm(bll ~ time + int + time2 + month)
+# Check residual plots
+plot(bll_model2)
+# Durbin Watson test for autocorrelation of residuals
+dwtest(bll_model2)
+# Get parameter estimates and confidence intervals
+summary(bll_model2)
+confint(bll_model2)
+```
+
+  
+  
+####**Model 3**
+
+``` {r Q5-model 3, echo = FALSE}
+# Estimate model
+bll_model3 <- glm(bll ~ time + int + time2 + month + lag1_bll)
+# Check residual plots
+plot(bll_model3)
+# Durbin Watson test for autocorrelation of residuals
+dwtest(bll_model3)
+# Get parameter estimates and confidence intervals
+summary(bll_model3)
+confint(bll_model3)
+```
+
+  
+  
+####**Model 4**
+
+``` {r Q5-model 4, echo = FALSE}
+# Estimate model
+bll_model4 <- glm(bll ~ time + lag_int + lag_time2 + month)
+# Check residual plots
+plot(bll_model4)
+# Durbin Watson test for autocorrelation of residuals
+dwtest(bll_model4)
+# Get parameter estimates and confidence intervals
+summary(bll_model4)
+confint(bll_model4)
+```
+
+  
+  
+####**Model 5**
+
+``` {r Q5-model 5, echo = FALSE}
+# Estimate model
+bll_model5 <- glm(bll ~ time + lag_int + lag_time2 + month + lag1_bll)
+# Check residual plots
+plot(bll_model5)
+# Durbin Watson test for autocorrelation of residuals
+dwtest(bll_model5)
+# Get parameter estimates and confidence intervals
+summary(bll_model5)
+confint(bll_model5)
+``` 
+
+
+Model 3 is the best model based on the Durbin-Watson test, AIC and model simplicity. First and foremost the model has to have negligible autocorrelation as detectable by the Durbin-Watson test. A p-value above .05, rejecting the null hypothesis is required for using a linear regresion model on interrupted time series.  
+  
+**P-values for DW test:**  
+Model 1: 3.335e-07  
+Model 2: 0.0002399  
+Model 3: 0.4263  
+Model 4: 0.001658  
+Model 5: 0.6671  
+  
+Because negligable autocorrelation is one of the assumptions for using a linear regression model on ITS, model 3 and model 5 are the only ones that can be considered. This makes sense because lag1_bll is equivalent to diff, which i showed in question 2 was essential to cancel out the correlation to the previous month.  
+
+**AIC for regression models:**  
+Model 3 (bll ~ time + int + time2 + month + lag1_bll): 238.95  
+Model 5 (bll ~ time + lag_int + lag_time2 + month + lag1_bll): 244.2  
+
+Despite looking at the graph and seeing what appears to be a lag, the model that does not have a lag for the intervention has a lower AIC of 238.95 and is therefore the better model.
+  
+Because there are 2 seemingly obvious outliers at time of intervention and the month after, I would probably want to remove those 2 observations from the time series all together and then I believe a lag model would fit better. As it is, I think the 2 extremes are averaging out in the model that is not lagged.  
+
+
+####(6) Using the model chosen in (5), what can you conclude about the effect of the intervention? Provide effect estimates and relevant statistics to support your answer. (15%)
+
+The Coefficient estimates for model 3 (time + int + time2 + month + lag1_bll) show a significant step change lower -.78 meaning that blood lead levels decreased .78 micrograms per ml hg as a dirrect result of the intervention. Month dummy variable coefficients do show adjustments based on the month (with January, June, July, August and September being the highest months), but previous month's bll seems to to be more statistically significant with a p value of .0024 and a coefficient of .25. Time shows that there is a general negative trend with a coefficient of -.015 and time2 shows that the slope is less (though still negative) with a coefficient of .007.
+
+####(7) Including a "negative control" series is one way of improving causal inference from interrupted time series analysis. Suggest an appropriate control series for this intervention, and justify your choice.  (10%)
+
+A negative control series that I would use for this intervention would be a nearby city with simialer blood levels that did not recieve the intervention. A good candidate might be buffolo NY or Ithaca NY both being upstate, but still being somewhat metropolitan.
+
+You would expect these groups of people to be acting similarly and therefore any change seen in one group that was not seen in the other shows stronger evidence for the effectiveness, or lack of effectiveness, for the intervention.
+
+Below I also plot an approximate counterfactual (removing int, the step change, but not time2, the slope change, coefficients for the intervention). A counterfactual is not as good as a negative control, but gives a sense of what a negative control of the same population might look like assuming there were not any other unseen factors affecting blood lead levels.
+
+
+**Approximation of a counterfactual - readjusts assuming no step change or change of slope**
+``` {r Q7-Counterfactual, echo = FALSE}
+# Note that it must be a data frame, and have the same name as the vector used in the modelling
+int <- ts(data.frame(bll=rep(0, length(bll))),start=c(1993,10), end=c(2006,12), frequency=12)
+time2 <- int
+
+newdata = data.frame(int = int, time2 = time2)
+
+# Create the predicted time series in the absence of the intervention
+pred <- predict.lm(bll_model3, newdata, interval="confidence")
+
+# Merge with the original data
+bll_pred <- ts.union(bll, pred)
+
+# Plot
+plot(bll_pred, plot.type="s",
+     col= c("blue","red","gray40","gray40"),
+     lty= c("solid","solid","dashed","dashed"), 
+     ylab= expression( "Lead in blood (" * mu * "g/ml)"), 
+     xlab="Month", 
+     main="Blood Lead for Children in Syracuse, NY: Oct 1993 to Dec 2006"
+     )
+
+abline(v=1999.917, col="gray", lwd=2, lty="dashed")
+
+legend ("topright", legend=c("Observed","Predicted","95% CI"), col=c("blue","red","gray40"), lty=c("solid","solid","dashed"))
+```
 
 ***
 
@@ -95,12 +378,12 @@ head(lead)
 
 I declare that this assessment item is my own work, except where acknowledged, and has not been submitted for academic credit elsewhere or previously, or produced independently of this course (e.g. for a third party such as your place of employment) and acknowledge that the assessor of this item may, for the purpose of assessing this item: (i) Reproduce this assessment item and provide a copy to another member of the University; and/or (ii) Communicate a copy of this assessment item to a plagiarism checking service (which may then retain a copy of the assessment item on its database for the purpose of future plagiarism checking).  
 
-- [ ] I understand and agree
+- [x] I understand and agree
 
 I certify that I have read and understood the University Rules in respect of Student Academic Misconduct.  
 
-- [ ] I understand and agree
+- [x] I understand and agree
 
 I have a backup copy of the assessment.  
-- [ ] I understand and agree
+- [x] I understand and agree
     
